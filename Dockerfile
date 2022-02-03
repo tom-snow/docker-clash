@@ -15,7 +15,7 @@ ENV PYTHONUNBUFFERED=1 \
     \
     # poetry
     # https://python-poetry.org/docs/configuration/#using-environment-variables
-    POETRY_VERSION=1.1.11 \
+    POETRY_VERSION=1.1.12 \
     # make poetry install to this location
     POETRY_HOME="/opt/poetry" \
     # make poetry create the virtual environment in the project's root
@@ -72,18 +72,6 @@ RUN set -eux; \
     gosu --version; \
     gosu nobody true
 
-COPY --from=dreamacro/clash-premium:2021.09.15 /clash /bin/
-RUN set -eux; \
-    # clash cap
-    setcap 'cap_net_admin,cap_net_bind_service=+ep' "$(which clash)"; \
-    # yacd ui
-    wget -O yacd.zip 'https://github.com/haishanh/yacd/archive/gh-pages.zip'; \
-    mkdir $UI_DIR; \
-    unzip yacd.zip -d $UI_DIR; \
-    mv $UI_DIR/yacd-gh-pages/* $UI_DIR; \
-    rm -rf $UI_DIR/yacd-gh-pages; \
-    rm -rf yacd.zip
-
 # `builder-base` stage is used to build deps + create our virtual environment
 FROM python-base as builder-base
 RUN apk add --no-cache \
@@ -99,7 +87,7 @@ RUN apk add --no-cache \
     libffi-dev
 
 # install poetry - respects $POETRY_VERSION & $POETRY_HOME
-RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/install-poetry.py | python -
+RUN curl -sSL https://install.python-poetry.org | python3 -
 
 # copy project requirement files here to ensure they will be cached.
 WORKDIR $PYSETUP_PATH
@@ -116,5 +104,15 @@ RUN poetry install --no-dev
 # `production` image used for runtime
 FROM python-base as production
 COPY --from=builder-dev $PYSETUP_PATH $PYSETUP_PATH
+
+# clash bin
+COPY --from=dreamacro/clash-premium:2021.11.08 /clash /usr/local/bin/
+RUN set -eux; \
+    # clash cap
+    setcap 'cap_net_admin,cap_net_bind_service=+ep' "$(which clash)"; \
+    mkdir -p $UI_DIR
+# yacd fontend for clash
+COPY --from=haishanh/yacd:v0.3.4 /usr/share/nginx/html/ $UI_DIR
+
 COPY ./entrypoint.sh /entrypoint.sh
 ENTRYPOINT [ "/entrypoint.sh" ]
