@@ -148,3 +148,4 @@ cython_debug/
 # poetry.lock
 clash_dir/
 *.yaml
+test/
